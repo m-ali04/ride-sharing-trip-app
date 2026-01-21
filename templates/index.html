@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RideShare Dispatch System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <header class="header">
+        <div class="logo">
+            <i class="fas fa-car"></i>
+            <span>RideShare Dispatch</span>
+        </div>
+        <nav class="nav-links">
+            <a href="/dashboard" class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+            <a href="/analytics"><i class="fas fa-chart-bar"></i> Analytics</a>
+            <a href="#" id="initSystem"><i class="fas fa-play"></i> Initialize</a>
+        </nav>
+    </header>
+
+    <main class="container">
+        <!-- System Overview -->
+        <div class="card neumorphism">
+            <div class="card-header">
+                <h2 class="card-title"><i class="fas fa-info-circle"></i> System Overview</h2>
+                <button class="btn btn-primary" id="initSystem">
+                    <i class="fas fa-play"></i> Initialize System
+                </button>
+            </div>
+            <div class="card-body">
+                <p>A complete ride-sharing dispatch system with zone-based partitioning, trip lifecycle management, cancellation with rollback, and comprehensive analytics.</p>
+                <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                    <div class="neumorphism-inset" style="padding: 1rem; text-align: center;">
+                        <div style="font-size: 2rem; font-weight: bold; color: var(--primary-color);" id="totalTrips">0</div>
+                        <div>Total Trips</div>
+                    </div>
+                    <div class="neumorphism-inset" style="padding: 1rem; text-align: center;">
+                        <div style="font-size: 2rem; font-weight: bold; color: var(--success);" id="activeTrips">0</div>
+                        <div>Active Trips</div>
+                    </div>
+                    <div class="neumorphism-inset" style="padding: 1rem; text-align: center;">
+                        <div style="font-size: 2rem; font-weight: bold; color: var(--warning);" id="availableDrivers">0</div>
+                        <div>Available Drivers</div>
+                    </div>
+                    <div class="neumorphism-inset" style="padding: 1rem; text-align: center;">
+                        <div style="font-size: 2rem; font-weight: bold; color: var(--primary-light);" id="totalRiders">0</div>
+                        <div>Total Riders</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- City Map Visualization -->
+        <div class="card neumorphism">
+            <div class="card-header">
+                <h2 class="card-title"><i class="fas fa-map-marked-alt"></i> City Map & Zones</h2>
+            </div>
+            <div class="card-body">
+                <div class="map-container neumorphism-inset" id="cityMap">
+                    <!-- Dynamic map will be rendered here -->
+                </div>
+                <div class="map-controls">
+                    <button onclick="app.initCityMap()" title="Reset Map">
+                        <i class="fas fa-sync"></i>
+                    </button>
+                    <button onclick="app.zoomIn()" title="Zoom In">
+                        <i class="fas fa-search-plus"></i>
+                    </button>
+                    <button onclick="app.zoomOut()" title="Zoom Out">
+                        <i class="fas fa-search-minus"></i>
+                    </button>
+                </div>
+
+                <div style="margin-top: 1rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+                    <button class="btn btn-secondary" onclick="app.findShortestPath()">
+                        <i class="fas fa-route"></i> Find Shortest Path
+                    </button>
+                    <button class="btn btn-secondary" onclick="app.showAllLocations()">
+                        <i class="fas fa-map-marker-alt"></i> Show All Locations
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <!-- Left Column -->
+            <div>
+                <!-- Drivers Section -->
+                <div class="card neumorphism">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-users"></i> Drivers</h3>
+                        <button class="btn btn-primary btn-small" id="addDriver">
+                            <i class="fas fa-plus"></i> Add Driver
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="driversList">
+                            <!-- Drivers will be populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Riders Section -->
+                <div class="card neumorphism">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-user-friends"></i> Riders</h3>
+                        <button class="btn btn-primary btn-small" id="addRider">
+                            <i class="fas fa-plus"></i> Add Rider
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="ridersList">
+                            <!-- Riders will be populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column -->
+            <div>
+                <!-- Trip Management -->
+                <div class="card neumorphism">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-taxi"></i> Trip Management</h3>
+                        <button class="btn btn-primary btn-small" id="requestRide">
+                            <i class="fas fa-plus"></i> Request Ride
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="tripsList">
+                            <!-- Active trips will be populated dynamically -->
+                        </div>
+                        <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                            <button class="btn btn-danger btn-small" id="cancelTripBtn">
+                                <i class="fas fa-times"></i> Cancel Last Trip
+                            </button>
+                            <button class="btn btn-warning btn-small" id="rollbackBtn">
+                                <i class="fas fa-undo"></i> Rollback Operations
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trip History -->
+                <div class="card neumorphism">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-history"></i> Recent Trip History</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="historyList">
+                            <!-- Trip history will be populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="card neumorphism">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-bolt"></i> Quick Actions</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                            <button class="btn btn-secondary" onclick="app.initSystem()">
+                                <i class="fas fa-sync"></i> Refresh System
+                            </button>
+                            <button class="btn btn-secondary" id="viewAnalytics">
+                                <i class="fas fa-chart-pie"></i> View Analytics
+                            </button>
+                            <button class="btn btn-secondary" onclick="location.reload()">
+                                <i class="fas fa-redo"></i> Reload Page
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modals -->
+    <!-- Request Ride Modal -->
+    <div class="modal" id="rideModal">
+        <div class="modal-content neumorphism">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-taxi"></i> Request a Ride</h3>
+                <button class="btn btn-small" onclick="app.hideModal('rideModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="rideForm">
+                <div class="form-group">
+                    <label class="form-label">Rider ID</label>
+                    <input type="number" class="form-control" name="rider_id" required min="1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Pickup Location ID</label>
+                    <input type="number" class="form-control" name="pickup" required min="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Drop-off Location ID</label>
+                    <input type="number" class="form-control" name="dropoff" required min="0">
+                </div>
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="app.hideModal('rideModal')">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-car"></i> Request Ride
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Driver Modal -->
+    <div class="modal" id="driverModal">
+        <div class="modal-content neumorphism">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-user-plus"></i> Add New Driver</h3>
+                <button class="btn btn-small" onclick="app.hideModal('driverModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="driverForm">
+                <div class="form-group">
+                    <label class="form-label">Driver ID</label>
+                    <input type="number" class="form-control" name="driver_id" required min="1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Driver Name</label>
+                    <input type="text" class="form-control" name="driver_name" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Vehicle Type</label>
+                    <input type="text" class="form-control" name="vehicle" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">License Plate</label>
+                    <input type="text" class="form-control" name="license" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Initial Location ID</label>
+                    <input type="number" class="form-control" name="location" value="0" min="0">
+                </div>
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="app.hideModal('driverModal')">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Add Driver
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Rider Modal -->
+    <div class="modal" id="riderModal">
+        <div class="modal-content neumorphism">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-user-plus"></i> Add New Rider</h3>
+                <button class="btn btn-small" onclick="app.hideModal('riderModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="riderForm">
+                <div class="form-group">
+                    <label class="form-label">Rider ID</label>
+                    <input type="number" class="form-control" name="rider_id" required min="1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Rider Name</label>
+                    <input type="text" class="form-control" name="rider_name" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" class="form-control" name="email" required>
+                </div>
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="app.hideModal('riderModal')">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Add Rider
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div class="notification" id="notification"></div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
