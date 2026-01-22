@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RideShare Dispatch System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <i class="fas fa-car-side"></i>
+                <h1>RideShare Dispatch</h1>
+            </div>
+            <nav class="nav">
+                <button class="nav-btn active" onclick="showPage('dashboard')">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </button>
+                <button class="nav-btn" onclick="showPage('analytics')">
+                    <i class="fas fa-chart-bar"></i> Analytics
+                </button>
+                <button class="nav-btn" onclick="showPage('manage')">
+                    <i class="fas fa-cog"></i> Manage
+                </button>
+            </nav>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Page -->
+            <div id="dashboard-page" class="page active">
+                <!-- System Status -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-info-circle"></i> System Status</h2>
+                        <button class="btn btn-primary" onclick="initSystem()">
+                            <i class="fas fa-play"></i> Initialize System
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-value" id="total-trips">0</div>
+                                <div class="stat-label">Total Trips</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="active-trips">0</div>
+                                <div class="stat-label">Active Trips</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="available-drivers">0</div>
+                                <div class="stat-label">Available Drivers</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="total-riders">0</div>
+                                <div class="stat-label">Total Riders</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- City Map -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-map"></i> City Map & Zones</h2>
+                        <div class="btn-group">
+                            <button class="btn btn-secondary" onclick="refreshMap()">
+                                <i class="fas fa-sync"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="city-map" class="city-map">
+                            <!-- Map will be rendered here -->
+                        </div>
+                        <div class="map-legend">
+                            <div class="legend-item">
+                                <div class="legend-color" style="background-color: #8a2be2;"></div>
+                                <span>Zone Boundary</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background-color: #10b981;"></div>
+                                <span>Available Driver</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background-color: #ef4444;"></div>
+                                <span>Busy Driver</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background-color: #f59e0b;"></div>
+                                <span>Location</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="columns">
+                    <!-- Left Column -->
+                    <div class="column">
+                        <!-- Drivers -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h2><i class="fas fa-users"></i> Drivers</h2>
+                                <button class="btn btn-primary" onclick="showAddDriverModal()">
+                                    <i class="fas fa-plus"></i> Add Driver
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div id="drivers-list" class="list">
+                                    <!-- Drivers will be loaded here -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Riders -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h2><i class="fas fa-user-friends"></i> Riders</h2>
+                                <button class="btn btn-primary" onclick="showAddRiderModal()">
+                                    <i class="fas fa-plus"></i> Add Rider
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div id="riders-list" class="list">
+                                    <!-- Riders will be loaded here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column -->
+                    <div class="column">
+                        <!-- Trip Management -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h2><i class="fas fa-taxi"></i> Trip Management</h2>
+                                <button class="btn btn-primary" onclick="showRequestRideModal()">
+                                    <i class="fas fa-plus"></i> Request Ride
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div id="trips-list" class="list">
+                                    <!-- Trips will be loaded here -->
+                                </div>
+                                <div class="action-buttons">
+                                    <button class="btn btn-danger" onclick="cancelLastTrip()">
+                                        <i class="fas fa-times"></i> Cancel Last Trip
+                                    </button>
+                                    <button class="btn btn-warning" onclick="showRollbackModal()">
+                                        <i class="fas fa-undo"></i> Rollback
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Trip History -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h2><i class="fas fa-history"></i> Recent Trip History</h2>
+                            </div>
+                            <div class="card-body">
+                                <div id="history-list" class="list">
+                                    <!-- History will be loaded here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Page -->
+            <div id="analytics-page" class="page">
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-chart-bar"></i> System Analytics</h2>
+                        <button class="btn btn-primary" onclick="loadAnalytics()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="analytics-content">
+                            <!-- Analytics will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Manage Page -->
+            <div id="manage-page" class="page">
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-cog"></i> System Management</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="management-actions">
+                            <button class="btn btn-primary" onclick="initSystem()">
+                                <i class="fas fa-play"></i> Initialize System
+                            </button>
+                            <button class="btn btn-secondary" onclick="clearSystem()">
+                                <i class="fas fa-trash"></i> Clear System
+                            </button>
+                            <button class="btn btn-warning" onclick="showRollbackModal()">
+                                <i class="fas fa-undo"></i> Rollback Operations
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Notification Area -->
+        <div id="notification-area"></div>
+    </div>
+
+    <!-- Modals -->
+    <!-- Request Ride Modal -->
+    <div id="request-ride-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-taxi"></i> Request a Ride</h3>
+                <button class="close-btn" onclick="hideModal('request-ride-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="request-ride-form">
+                    <div class="form-group">
+                        <label for="rider-id">Rider ID</label>
+                        <input type="number" id="rider-id" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="pickup-location">Pickup Location ID</label>
+                        <input type="number" id="pickup-location" class="form-control" required>
+                        <small>Enter location ID (0-14)</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="dropoff-location">Dropoff Location ID</label>
+                        <input type="number" id="dropoff-location" class="form-control" required>
+                        <small>Enter location ID (0-14)</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="hideModal('request-ride-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="requestRide()">Request Ride</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Driver Modal -->
+    <div id="add-driver-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-user-plus"></i> Add New Driver</h3>
+                <button class="close-btn" onclick="hideModal('add-driver-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="add-driver-form">
+                    <div class="form-group">
+                        <label for="driver-name">Driver Name</label>
+                        <input type="text" id="driver-name" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="driver-location">Starting Location ID</label>
+                        <input type="number" id="driver-location" class="form-control" value="0" min="0" max="14">
+                    </div>
+                    <div class="form-group">
+                        <label for="driver-vehicle">Vehicle Type</label>
+                        <input type="text" id="driver-vehicle" class="form-control" value="Car">
+                    </div>
+                    <div class="form-group">
+                        <label for="driver-license">License Plate</label>
+                        <input type="text" id="driver-license" class="form-control" placeholder="e.g., ABC123">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="hideModal('add-driver-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="addDriver()">Add Driver</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Rider Modal -->
+    <div id="add-rider-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-user-plus"></i> Add New Rider</h3>
+                <button class="close-btn" onclick="hideModal('add-rider-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="add-rider-form">
+                    <div class="form-group">
+                        <label for="rider-name">Rider Name</label>
+                        <input type="text" id="rider-name" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="rider-email">Email Address</label>
+                        <input type="email" id="rider-email" class="form-control">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="hideModal('add-rider-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="addRider()">Add Rider</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rollback Modal -->
+    <div id="rollback-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-undo"></i> Rollback Operations</h3>
+                <button class="close-btn" onclick="hideModal('rollback-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="rollback-count">Number of operations to rollback:</label>
+                    <input type="number" id="rollback-count" class="form-control" value="1" min="1" max="10">
+                </div>
+                <p class="text-muted">This will undo the last k operations (trip requests, assignments, etc.)</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="hideModal('rollback-modal')">Cancel</button>
+                <button class="btn btn-warning" onclick="performRollback()">Rollback</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
