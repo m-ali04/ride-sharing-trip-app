@@ -1,14 +1,131 @@
 class RideSharingApp {
     constructor() {
         this.systemState = null;
-        this.currentTripId = null;
+        this.activeAnimations = new Map();
+        this.driverPaths = new Map();
         this.init();
     }
 
     init() {
         this.bindEvents();
+        this.connectWebSocket();
         this.loadSystemState();
-        this.startAutoRefresh();
+        this.startAnimationLoop();
+    }
+
+    connectWebSocket() {
+        this.socket = io();
+
+        this.socket.on('connect', () => {
+            console.log('Connected to live server');
+            this.showNotification('Connected to RideShare Live System', 'success');
+        });
+
+        this.socket.on('system_update', (data) => {
+            this.handleSystemUpdate(data);
+        });
+
+        this.socket.on('trip_update', (data) => {
+            this.handleTripUpdate(data);
+        });
+
+        this.socket.on('disconnect', () => {
+            this.showNotification('Disconnected from server', 'error');
+        });
+    }
+
+    handleSystemUpdate(data) {
+        this.systemState = data.data;
+        this.updateDashboard();
+        this.renderCityMap();
+    }
+
+    handleTripUpdate(data) {
+        console.log(`Trip update: ${data.trip_id} - ${data.status} - ${data.stage}`);
+
+        // Show notification for important updates
+        if (data.status === 'CANCELLED') {
+            this.showNotification(`Trip #${data.trip_id} cancelled`, 'warning');
+        } else if (data.status === 'COMPLETED') {
+            this.showNotification(`Trip #${data.trip_id} completed successfully!`, 'success');
+        } else if (data.stage === 'to_pickup') {
+            this.showNotification(`Trip #${data.trip_id}: Driver heading to pickup`, 'info');
+        } else if (data.stage === 'to_dropoff') {
+            this.showNotification(`Trip #${data.trip_id}: Heading to destination`, 'info');
+        }
+
+        // Update animation
+        if (data.progress) {
+            this.updateTripAnimation(data.trip_id, data.progress);
+        }
+
+        // Refresh dashboard
+        setTimeout(() => this.loadSystemState(), 500);
+    }
+
+    updateTripAnimation(tripId, progress) {
+        if (progress.stage === 'to_pickup' || progress.stage === 'to_dropoff') {
+            this.activeAnimations.set(tripId, progress);
+
+            // Draw path for this trip
+            if (progress.trip && progress.trip.driver_id) {
+                this.drawDriverPath(progress.trip.driver_id, progress);
+            }
+        } else if (progress.stage === 'completed') {
+            this.activeAnimations.delete(tripId);
+            this.driverPaths.delete(progress.trip.driver_id);
+        }
+    }
+
+    drawDriverPath(driverId, progress) {
+        const trip = progress.trip;
+        if (!trip) return;
+
+        // Calculate path points
+        let pathPoints = [];
+
+        if (this.systemState && this.systemState.city) {
+            const locations = this.systemState.city.locations;
+
+            if (progress.stage === 'to_pickup' && trip.driver_id) {
+                const driver = this.systemState.drivers.find(d => d.id === driverId);
+                if (driver) {
+                    // Simulate path from driver to pickup
+                    const startLoc = locations.find(l => l.id === driver.location);
+                    const endLoc = locations.find(l => l.id === trip.pickup);
+
+                    if (startLoc && endLoc) {
+                        pathPoints = this.interpolatePath(startLoc, endLoc, 10);
+                    }
+                }
+            } else if (progress.stage === 'to_dropoff') {
+                const startLoc = locations.find(l => l.id === trip.pickup);
+                const endLoc = locations.find(l => l.id === trip.dropoff);
+
+                if (startLoc && endLoc) {
+                    pathPoints = this.interpolatePath(startLoc, endLoc, 10);
+                }
+            }
+        }
+
+        if (pathPoints.length > 0) {
+            this.driverPaths.set(driverId, {
+                path: pathPoints,
+                progress: progress.progress_percentage || 0,
+                color: progress.stage === 'to_pickup' ? '#3b82f6' : '#10b981'
+            });
+        }
+    }
+
+    interpolatePath(startLoc, endLoc, steps) {
+        const points = [];
+        for (let i = 0; i <= steps; i++) {
+            const ratio = i / steps;
+            const x = startLoc.x + (endLoc.x - startLoc.x) * ratio;
+            const y = startLoc.y + (endLoc.y - startLoc.y) * ratio;
+            points.push({ x, y });
+        }
+        return points;
     }
 
     bindEvents() {
@@ -20,28 +137,7 @@ class RideSharingApp {
             });
         });
 
-        // Form submissions
-        document.getElementById('request-ride-form')?.addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.requestRide();
-        });
-
-        document.getElementById('add-driver-form')?.addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.addDriver();
-        });
-
-        document.getElementById('add-rider-form')?.addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.addRider();
-        });
-
         // Bind trip action buttons
-        this.bindTripActionButtons();
-    }
-
-    bindTripActionButtons() {
-        // Use event delegation for dynamically created buttons
         document.addEventListener('click', (e) => {
             const tripActionBtn = e.target.closest('.trip-action-btn');
             if (tripActionBtn) {
@@ -53,21 +149,12 @@ class RideSharingApp {
     }
 
     showPage(pageId) {
-        // Hide all pages
-        document.querySelectorAll('.page').forEach(page => {
-            page.classList.remove('active');
-        });
-
-        // Show selected page
+        document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
         document.getElementById(`${pageId}-page`).classList.add('active');
 
-        // Update active nav button
-        document.querySelectorAll('.nav-btn').forEach(btn => {
-            btn.classList.remove('active');
-        });
+        document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
         document.querySelector(`.nav-btn[onclick="showPage('${pageId}')"]`).classList.add('active');
 
-        // Refresh data for the page
         if (pageId === 'dashboard') {
             this.loadSystemState();
         } else if (pageId === 'analytics') {
@@ -93,11 +180,8 @@ class RideSharingApp {
         `;
         notificationArea.appendChild(notification);
 
-        // Auto-remove after 5 seconds
         setTimeout(() => {
-            if (notification.parentNode) {
-                notification.remove();
-            }
+            if (notification.parentNode) notification.remove();
         }, 5000);
     }
 
@@ -105,14 +189,14 @@ class RideSharingApp {
         try {
             const response = await fetch('/api/system/state');
             const data = await response.json();
-            
+
             if (data.success) {
                 this.systemState = data.system;
                 this.updateDashboard();
                 this.renderCityMap();
             }
         } catch (error) {
-            this.showNotification('Error loading system state', 'error');
+            console.error('Error loading system state:', error);
         }
     }
 
@@ -129,20 +213,30 @@ class RideSharingApp {
 
         // Update drivers list
         const driversList = document.getElementById('drivers-list');
-        driversList.innerHTML = this.systemState.drivers.map(driver => `
-            <div class="list-item">
-                <div>
-                    <strong>${driver.name}</strong><br>
-                    <small>${driver.vehicle} • ${driver.license_plate || 'No plate'}</small><br>
-                    <small>Location: ${driver.location}</small>
+        driversList.innerHTML = this.systemState.drivers.map(driver => {
+            const isBusy = !driver.available;
+            const activeTrip = isBusy ?
+                Array.from(this.activeAnimations.entries()).find(([id, progress]) =>
+                    progress.trip && progress.trip.driver_id === driver.id
+                ) : null;
+
+            return `
+                <div class="list-item">
+                    <div>
+                        <strong>${driver.name}</strong><br>
+                        <small>${driver.vehicle} • ${driver.license_plate || 'No plate'}</small><br>
+                        <small>Location: ${driver.location}</small>
+                        ${isBusy && activeTrip ?
+                    `<br><small style="color: var(--warning);">On Trip #${activeTrip[0]}</small>` : ''}
+                    </div>
+                    <div>
+                        <span class="status-badge ${driver.available ? 'status-ongoing' : 'status-cancelled'}">
+                            ${driver.available ? 'Available' : 'Busy'}
+                        </span>
+                    </div>
                 </div>
-                <div>
-                    <span class="status-badge ${driver.available ? 'status-ongoing' : 'status-cancelled'}">
-                        ${driver.available ? 'Available' : 'Busy'}
-                    </span>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
 
         // Update riders list
         const ridersList = document.getElementById('riders-list');
@@ -151,69 +245,95 @@ class RideSharingApp {
                 <div>
                     <strong>${rider.name}</strong><br>
                     <small>${rider.email || 'No email'}</small><br>
-                    <small>Trips: ${rider.trip_count}</small>
+                    <small>ID: ${rider.id} • Trips: ${rider.trip_count}</small>
                 </div>
             </div>
         `).join('');
 
-        // Update active trips - FIXED: Proper button event handling
+        // Update active trips with progress
         const tripsList = document.getElementById('trips-list');
         const activeTrips = this.systemState.trips.filter(trip => trip.is_active);
-        
-        tripsList.innerHTML = activeTrips.map(trip => `
-            <div class="list-item" data-trip-id="${trip.id}">
-                <div>
-                    <strong>Trip #${trip.id}</strong><br>
-                    <small>Rider: ${trip.rider_id} → Driver: ${trip.driver_id || 'Not assigned'}</small><br>
-                    <small>Pickup: ${trip.pickup} → Dropoff: ${trip.dropoff}</small>
-                    ${trip.fare > 0 ? `<br><small>Fare: $${trip.fare.toFixed(2)}</small>` : ''}
-                </div>
-                <div>
-                    <span class="status-badge status-${trip.status.toLowerCase()}">
-                        ${trip.status}
-                    </span>
-                    <div style="margin-top: 5px; display: flex; gap: 5px;">
-                        <button class="btn btn-small btn-success trip-action-btn" 
-                                data-trip-id="${trip.id}" 
-                                data-action="start"
-                                ${trip.status !== 'ASSIGNED' ? 'disabled' : ''}>
-                            <i class="fas fa-play"></i>
-                        </button>
-                        <button class="btn btn-small btn-success trip-action-btn" 
-                                data-trip-id="${trip.id}" 
-                                data-action="complete"
-                                ${trip.status !== 'ONGOING' ? 'disabled' : ''}>
-                            <i class="fas fa-check"></i>
-                        </button>
-                        <button class="btn btn-small btn-danger trip-action-btn" 
-                                data-trip-id="${trip.id}" 
-                                data-action="cancel"
-                                ${!trip.is_active ? 'disabled' : ''}>
-                            <i class="fas fa-times"></i>
-                        </button>
+
+        tripsList.innerHTML = activeTrips.map(trip => {
+            const progress = this.activeAnimations.get(trip.id) || {};
+            const stage = progress.stage || 'waiting';
+            const progressPercent = progress.progress_percentage || 0;
+
+            let stageText = '';
+            let progressBar = '';
+
+            if (stage === 'to_pickup') {
+                stageText = `Driver heading to pickup (${progressPercent}%)`;
+                progressBar = this.createProgressBar(progressPercent, 'blue');
+            } else if (stage === 'to_dropoff') {
+                stageText = `Heading to destination (${progressPercent}%)`;
+                progressBar = this.createProgressBar(progressPercent, 'green');
+            } else if (trip.status === 'ASSIGNED') {
+                stageText = 'Driver assigned, preparing to move';
+            } else if (trip.status === 'ONGOING') {
+                stageText = 'Trip in progress';
+            } else if (trip.status === 'REQUESTED') {
+                stageText = 'Looking for available driver...';
+            }
+
+            return `
+                <div class="list-item" data-trip-id="${trip.id}">
+                    <div>
+                        <strong>Trip #${trip.id}</strong><br>
+                        <small>From: Location ${trip.pickup} → To: Location ${trip.dropoff}</small><br>
+                        <small>Rider: ${trip.rider_id} • Driver: ${trip.driver_id || 'Finding...'}</small>
+                        ${stageText ? `<br><small style="color: #666;">${stageText}</small>` : ''}
+                        ${progressBar}
+                    </div>
+                    <div>
+                        <span class="status-badge status-${trip.status.toLowerCase()}">
+                            ${trip.status}
+                        </span>
+                        <div style="margin-top: 5px; display: flex; gap: 5px;">
+                            <button class="btn btn-small btn-danger trip-action-btn" 
+                                    data-trip-id="${trip.id}" 
+                                    data-action="cancel"
+                                    ${!trip.is_active ? 'disabled' : ''}>
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
 
         // Update history
         const historyList = document.getElementById('history-list');
         const recentTrips = [...this.systemState.trips]
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
             .slice(0, 5);
-        
+
         historyList.innerHTML = recentTrips.map(trip => `
             <div class="list-item">
                 <div>
                     <strong>Trip #${trip.id}</strong><br>
-                    <small>Status: ${trip.status}</small><br>
-                    <small>Fare: $${trip.fare.toFixed(2)}</small>
+                    <small>${trip.status} • $${trip.fare.toFixed(2)}</small>
                 </div>
                 <span class="status-badge status-${trip.status.toLowerCase()}">
                     ${trip.status}
                 </span>
             </div>
         `).join('');
+    }
+
+    createProgressBar(percent, color) {
+        const colorMap = { blue: '#3b82f6', green: '#10b981' };
+        return `
+            <div style="margin-top: 8px; width: 100%;">
+                <div style="height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden;">
+                    <div style="height: 100%; width: ${percent}%; background: ${colorMap[color] || '#8a2be2'}; 
+                         border-radius: 3px; transition: width 0.3s;"></div>
+                </div>
+                <div style="font-size: 0.8rem; color: #666; margin-top: 2px; text-align: right;">
+                    ${percent}%
+                </div>
+            </div>
+        `;
     }
 
     renderCityMap() {
@@ -231,26 +351,22 @@ class RideSharingApp {
         svg.setAttribute('width', '100%');
         svg.setAttribute('height', '100%');
         svg.setAttribute('viewBox', '0 0 1000 400');
-        svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
-        // Define zone colors
+        // Draw zones
         const zoneColors = [
-            'rgba(138, 43, 226, 0.05)',   // Zone 0 - Light Purple
-            'rgba(59, 130, 246, 0.05)',   // Zone 1 - Light Blue
-            'rgba(16, 185, 129, 0.05)',   // Zone 2 - Light Green
-            'rgba(245, 158, 11, 0.05)',   // Zone 3 - Light Yellow
-            'rgba(239, 68, 68, 0.05)'     // Zone 4 - Light Red
+            'rgba(138, 43, 226, 0.05)', 'rgba(59, 130, 246, 0.05)',
+            'rgba(16, 185, 129, 0.05)', 'rgba(245, 158, 11, 0.05)',
+            'rgba(239, 68, 68, 0.05)'
         ];
 
-        // Draw zones (5 zones horizontally)
         const zoneWidth = 180;
         const zoneHeight = 300;
         const zoneSpacing = 10;
-        
+
         for (let zone = 0; zone < 5; zone++) {
             const x = zone * (zoneWidth + zoneSpacing) + 20;
             const y = 50;
-            
+
             // Zone background
             const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
             rect.setAttribute('x', x);
@@ -279,17 +395,38 @@ class RideSharingApp {
         city.roads.forEach(road => {
             const fromLoc = locations.find(l => l.id === road.from);
             const toLoc = locations.find(l => l.id === road.to);
-            
+
             if (fromLoc && toLoc) {
                 const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                 line.setAttribute('x1', fromLoc.x);
                 line.setAttribute('y1', fromLoc.y);
                 line.setAttribute('x2', toLoc.x);
                 line.setAttribute('y2', toLoc.y);
-                line.setAttribute('stroke', 'rgba(100, 100, 100, 0.4)');
-                line.setAttribute('stroke-width', '3');
+                line.setAttribute('stroke', 'rgba(100, 100, 100, 0.3)');
+                line.setAttribute('stroke-width', '2');
                 line.setAttribute('stroke-dasharray', '5,5');
                 svg.appendChild(line);
+            }
+        });
+
+        // Draw driver paths (animations)
+        this.driverPaths.forEach((pathData, driverId) => {
+            if (pathData.path.length > 1) {
+                // Draw completed portion
+                const completedIndex = Math.floor(pathData.path.length * (pathData.progress / 100));
+                const completedPath = pathData.path.slice(0, completedIndex + 1);
+
+                if (completedPath.length > 1) {
+                    const pathLine = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+                    let points = completedPath.map(p => `${p.x},${p.y}`).join(' ');
+                    pathLine.setAttribute('points', points);
+                    pathLine.setAttribute('fill', 'none');
+                    pathLine.setAttribute('stroke', pathData.color);
+                    pathLine.setAttribute('stroke-width', '4');
+                    pathLine.setAttribute('stroke-linecap', 'round');
+                    pathLine.style.opacity = '0.7';
+                    svg.appendChild(pathLine);
+                }
             }
         });
 
@@ -304,6 +441,9 @@ class RideSharingApp {
             circle.setAttribute('stroke-width', '2');
             circle.setAttribute('data-location-id', location.id);
             circle.setAttribute('title', `Location ${location.id} (${location.zone})`);
+            circle.style.cursor = 'pointer';
+
+            circle.addEventListener('click', () => this.selectLocation(location.id));
             svg.appendChild(circle);
 
             // Location label
@@ -322,21 +462,20 @@ class RideSharingApp {
             const driverLocation = locations.find(l => l.id === driver.location);
             if (driverLocation) {
                 const driverColor = driver.available ? '#10b981' : '#ef4444';
-                
+
+                // Driver circle
                 const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 circle.setAttribute('cx', driverLocation.x);
                 circle.setAttribute('cy', driverLocation.y);
-                circle.setAttribute('r', '10');
+                circle.setAttribute('r', '12');
                 circle.setAttribute('fill', driverColor);
                 circle.setAttribute('stroke', 'white');
                 circle.setAttribute('stroke-width', '3');
-                circle.setAttribute('data-driver-id', driver.id);
-                circle.setAttribute('title', `${driver.name} - ${driver.available ? 'Available' : 'Busy'}`);
-                
+
                 if (!driver.available) {
                     circle.style.animation = 'pulse 1.5s infinite';
                 }
-                
+
                 svg.appendChild(circle);
 
                 // Driver initial
@@ -345,14 +484,14 @@ class RideSharingApp {
                 text.setAttribute('y', driverLocation.y + 4);
                 text.setAttribute('text-anchor', 'middle');
                 text.setAttribute('fill', 'white');
-                text.setAttribute('font-size', '9');
+                text.setAttribute('font-size', '10');
                 text.setAttribute('font-weight', 'bold');
                 text.textContent = driver.name.charAt(0);
                 svg.appendChild(text);
             }
         });
 
-        // Add animation for pulse effect
+        // Add CSS animations
         const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
         style.textContent = `
             @keyframes pulse {
@@ -366,16 +505,39 @@ class RideSharingApp {
         mapContainer.appendChild(svg);
     }
 
+    selectLocation(locationId) {
+        // Auto-fill form fields
+        const pickupField = document.getElementById('pickup-location');
+        const dropoffField = document.getElementById('dropoff-location');
+
+        if (pickupField && document.getElementById('request-ride-modal').classList.contains('active')) {
+            if (!pickupField.value) {
+                pickupField.value = locationId;
+                this.showNotification(`Set pickup location to ${locationId}`, 'success');
+            } else if (!dropoffField.value && pickupField.value != locationId) {
+                dropoffField.value = locationId;
+                this.showNotification(`Set dropoff location to ${locationId}`, 'success');
+            }
+        }
+    }
+
+    startAnimationLoop() {
+        setInterval(() => {
+            if (this.systemState) {
+                this.renderCityMap();
+            }
+        }, 1000);
+    }
+
     async initSystem() {
         try {
-            const response = await fetch('/api/init', {
-                method: 'POST'
-            });
+            const response = await fetch('/api/init', { method: 'POST' });
             const data = await response.json();
-            
+
             if (data.success) {
                 this.showNotification('System initialized successfully!', 'success');
                 this.loadSystemState();
+                this.socket.emit('request_update');
             } else {
                 this.showNotification(data.error, 'error');
             }
@@ -385,6 +547,8 @@ class RideSharingApp {
     }
 
     showRequestRideModal() {
+        document.getElementById('pickup-location').value = '';
+        document.getElementById('dropoff-location').value = '';
         this.showModal('request-ride-modal');
     }
 
@@ -401,21 +565,29 @@ class RideSharingApp {
     }
 
     async requestRide() {
+        console.log("\n=== FRONTEND: Requesting ride ===");
+
         const riderId = document.getElementById('rider-id').value;
         const pickup = document.getElementById('pickup-location').value;
         const dropoff = document.getElementById('dropoff-location').value;
+
+        console.log(`Rider ID: ${riderId}, Pickup: ${pickup}, Dropoff: ${dropoff}`);
 
         if (!riderId || !pickup || !dropoff) {
             this.showNotification('Please fill all fields', 'warning');
             return;
         }
 
+        if (pickup === dropoff) {
+            this.showNotification('Pickup and dropoff cannot be the same', 'error');
+            return;
+        }
+
         try {
+            console.log("Sending request to /api/trip/request...");
             const response = await fetch('/api/trip/request', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     rider_id: parseInt(riderId),
                     pickup: parseInt(pickup),
@@ -423,60 +595,49 @@ class RideSharingApp {
                 })
             });
 
+            console.log("Response received");
             const data = await response.json();
-            
+            console.log("Response data:", data);
+
             if (data.success) {
-                this.showNotification(`Trip #${data.trip.id} requested successfully! Status: ${data.trip.status}`, 'success');
+                console.log("✓ Trip requested successfully!");
+                this.showNotification(`Trip #${data.trip.id} requested!`, 'success');
                 this.hideModal('request-ride-modal');
-                this.loadSystemState();
-                this.currentTripId = data.trip.id;
+
+                // Clear form
+                document.getElementById('rider-id').value = '';
+                document.getElementById('pickup-location').value = '';
+                document.getElementById('dropoff-location').value = '';
+
+                // The system will automatically update via WebSocket
             } else {
+                console.log("✗ Error:", data.error);
                 this.showNotification(data.error, 'error');
             }
         } catch (error) {
+            console.error("✗ Request error:", error);
             this.showNotification('Error requesting ride', 'error');
         }
     }
 
     async updateTripStatus(tripId, action) {
         try {
-            // Show loading state
-            const button = document.querySelector(`.trip-action-btn[data-trip-id="${tripId}"][data-action="${action}"]`);
-            if (button) {
-                const originalHTML = button.innerHTML;
-                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-                button.disabled = true;
-                
-                setTimeout(async () => {
-                    const response = await fetch(`/api/trip/${tripId}/update`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ action })
-                    });
-    
-                    const data = await response.json();
-                    
-                    // Restore button state
-                    button.innerHTML = originalHTML;
-                    button.disabled = false;
-                    
-                    if (data.success) {
-                        const messages = {
-                            'start': `Trip #${tripId} started successfully!`,
-                            'complete': `Trip #${tripId} completed successfully!`,
-                            'cancel': `Trip #${tripId} cancelled successfully!`
-                        };
-                        this.showNotification(messages[action], 'success');
-                        this.loadSystemState();
-                    } else {
-                        this.showNotification(data.error || `Failed to ${action} trip`, 'error');
-                    }
-                }, 500);
+            const response = await fetch(`/api/trip/${tripId}/cancel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.showNotification(`Trip #${tripId} cancelled`, 'success');
+                this.loadSystemState();
+                this.socket.emit('request_update');
+            } else {
+                this.showNotification(data.error || `Failed to ${action} trip`, 'error');
             }
         } catch (error) {
-            this.showNotification('Error updating trip', 'error');
+            this.showNotification('Error cancelling trip', 'error');
         }
     }
 
@@ -494,9 +655,7 @@ class RideSharingApp {
         try {
             const response = await fetch('/api/driver/add', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name: name,
                     location: parseInt(location) || 0,
@@ -506,11 +665,14 @@ class RideSharingApp {
             });
 
             const data = await response.json();
-            
+
             if (data.success) {
-                this.showNotification(`Driver ${name} added successfully!`, 'success');
+                this.showNotification(`Driver ${name} added!`, 'success');
                 this.hideModal('add-driver-modal');
+                document.getElementById('driver-name').value = '';
+                document.getElementById('driver-license').value = '';
                 this.loadSystemState();
+                this.socket.emit('request_update');
             } else {
                 this.showNotification(data.error, 'error');
             }
@@ -531,9 +693,7 @@ class RideSharingApp {
         try {
             const response = await fetch('/api/rider/add', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name: name,
                     email: email
@@ -541,11 +701,14 @@ class RideSharingApp {
             });
 
             const data = await response.json();
-            
+
             if (data.success) {
-                this.showNotification(`Rider ${name} added successfully!`, 'success');
+                this.showNotification(`Rider ${name} added!`, 'success');
                 this.hideModal('add-rider-modal');
+                document.getElementById('rider-name').value = '';
+                document.getElementById('rider-email').value = '';
                 this.loadSystemState();
+                this.socket.emit('request_update');
             } else {
                 this.showNotification(data.error, 'error');
             }
@@ -569,22 +732,21 @@ class RideSharingApp {
 
     async performRollback() {
         const k = document.getElementById('rollback-count').value;
-        
+
         try {
             const response = await fetch('/api/rollback', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ k: parseInt(k) })
             });
 
             const data = await response.json();
-            
+
             if (data.success) {
                 this.showNotification(`Rolled back ${k} operations`, 'success');
                 this.hideModal('rollback-modal');
                 this.loadSystemState();
+                this.socket.emit('request_update');
             } else {
                 this.showNotification(data.error, 'error');
             }
@@ -597,7 +759,7 @@ class RideSharingApp {
         try {
             const response = await fetch('/api/analytics');
             const data = await response.json();
-            
+
             if (data.success) {
                 this.displayAnalytics(data.analytics);
             }
@@ -608,7 +770,7 @@ class RideSharingApp {
 
     displayAnalytics(analytics) {
         const container = document.getElementById('analytics-content');
-        
+
         const html = `
             <div class="stats-grid" style="margin-bottom: 20px;">
                 <div class="stat-card">
@@ -661,27 +823,17 @@ class RideSharingApp {
                         <strong>Total Riders:</strong> ${analytics.total_riders}
                     </div>
                     <div>
-                        <strong>Cancellation Rate:</strong> ${analytics.cancelled_trips > 0 ? 
-                            Math.round((analytics.cancelled_trips / analytics.total_trips) * 100) : 0}%
+                        <strong>Active Animations:</strong> ${analytics.active_animations || 0}
                     </div>
                 </div>
             </div>
         `;
-        
+
         container.innerHTML = html;
     }
 
     refreshMap() {
         this.renderCityMap();
-    }
-
-    startAutoRefresh() {
-        // Refresh every 10 seconds
-        setInterval(() => {
-            if (document.querySelector('#dashboard-page.active')) {
-                this.loadSystemState();
-            }
-        }, 10000);
     }
 }
 
@@ -692,59 +844,59 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Global functions for button onclick handlers
 function showPage(page) {
-    window.app.showPage(page);
+    if (window.app) window.app.showPage(page);
 }
 
 function initSystem() {
-    window.app.initSystem();
+    if (window.app) window.app.initSystem();
 }
 
 function showRequestRideModal() {
-    window.app.showRequestRideModal();
+    if (window.app) window.app.showRequestRideModal();
 }
 
 function showAddDriverModal() {
-    window.app.showAddDriverModal();
+    if (window.app) window.app.showAddDriverModal();
 }
 
 function showAddRiderModal() {
-    window.app.showAddRiderModal();
+    if (window.app) window.app.showAddRiderModal();
 }
 
 function showRollbackModal() {
-    window.app.showRollbackModal();
+    if (window.app) window.app.showRollbackModal();
 }
 
 function hideModal(modalId) {
-    window.app.hideModal(modalId);
+    if (window.app) window.app.hideModal(modalId);
 }
 
 function requestRide() {
-    window.app.requestRide();
+    if (window.app) window.app.requestRide();
 }
 
 function addDriver() {
-    window.app.addDriver();
+    if (window.app) window.app.addDriver();
 }
 
 function addRider() {
-    window.app.addRider();
+    if (window.app) window.app.addRider();
 }
 
 function cancelLastTrip() {
-    window.app.cancelLastTrip();
+    if (window.app) window.app.cancelLastTrip();
 }
 
 function performRollback() {
-    window.app.performRollback();
+    if (window.app) window.app.performRollback();
 }
 
 function loadAnalytics() {
-    window.app.loadAnalytics();
+    if (window.app) window.app.loadAnalytics();
 }
 
 function refreshMap() {
-    window.app.refreshMap();
+    if (window.app) window.app.refreshMap();
 }
 
 // Zoom functions
@@ -756,7 +908,7 @@ const ZOOM_STEP = 0.2;
 function zoomIn() {
     const mapContainer = document.getElementById('city-map');
     const svg = mapContainer?.querySelector('svg');
-    
+
     if (svg && currentZoom < MAX_ZOOM) {
         currentZoom += ZOOM_STEP;
         updateZoom();
@@ -766,7 +918,7 @@ function zoomIn() {
 function zoomOut() {
     const mapContainer = document.getElementById('city-map');
     const svg = mapContainer?.querySelector('svg');
-    
+
     if (svg && currentZoom > MIN_ZOOM) {
         currentZoom -= ZOOM_STEP;
         updateZoom();
@@ -776,12 +928,11 @@ function zoomOut() {
 function updateZoom() {
     const mapContainer = document.getElementById('city-map');
     const svg = mapContainer?.querySelector('svg');
-    
+
     if (svg) {
         svg.style.transform = `scale(${currentZoom})`;
         svg.style.transformOrigin = 'center center';
-        
-        // Show zoom level
+
         let zoomIndicator = document.getElementById('zoom-indicator');
         if (!zoomIndicator) {
             zoomIndicator = document.createElement('div');
@@ -797,14 +948,7 @@ function updateZoom() {
             zoomIndicator.style.zIndex = '100';
             mapContainer.appendChild(zoomIndicator);
         }
-        
+
         zoomIndicator.textContent = `Zoom: ${Math.round(currentZoom * 100)}%`;
     }
-}
-
-// Reset zoom when refreshing map
-function refreshMap() {
-    currentZoom = 1;
-    window.app.renderCityMap();
-    updateZoom();
 }
