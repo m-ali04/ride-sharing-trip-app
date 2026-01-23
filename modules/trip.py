@@ -26,14 +26,24 @@ class Trip:
         self.cancelled_at: Optional[datetime] = None
         
     def assign_driver(self, driver_id: int):
-        """Assign a driver to this trip"""
+        """Assign a driver to this trip - DEBUG VERSION"""
+        print(f"\n=== DEBUG: Trip.assign_driver({driver_id}) called ===")
+        print(f"Current trip status: {self.status}")
+        print(f"Driver ID to assign: {driver_id}")
+    
         if self.status == TripStatus.REQUESTED:
             self.driver_id = driver_id
             self.status = TripStatus.ASSIGNED
             self.assigned_at = datetime.now()
+            print(f"✓ Driver assigned successfully!")
+            print(f"New trip status: {self.status}")
+            print(f"Driver ID set to: {self.driver_id}")
+        
             return True
+        
+        print(f"✗ Cannot assign driver: Trip is not in REQUESTED state")
         return False
-    
+
     def start(self):
         """Start the trip"""
         if self.status == TripStatus.ASSIGNED:
