@@ -3,6 +3,8 @@ class RideSharingApp {
         this.systemState = null;
         this.activeAnimations = new Map();
         this.driverPaths = new Map();
+        this.driverPositions = new Map();
+        this.locationSequence = new Map(); // Track location sequences for each driver
         this.init();
     }
 
@@ -67,65 +69,100 @@ class RideSharingApp {
         if (progress.stage === 'to_pickup' || progress.stage === 'to_dropoff') {
             this.activeAnimations.set(tripId, progress);
 
-            // Draw path for this trip
+            // Store driver animation path
             if (progress.trip && progress.trip.driver_id) {
-                this.drawDriverPath(progress.trip.driver_id, progress);
+                this.setupDriverAnimation(progress.trip.driver_id, progress);
             }
         } else if (progress.stage === 'completed') {
             this.activeAnimations.delete(tripId);
             this.driverPaths.delete(progress.trip.driver_id);
+            this.driverPositions.delete(progress.trip.driver_id);
+            this.locationSequence.delete(progress.trip.driver_id);
         }
     }
 
-    drawDriverPath(driverId, progress) {
+    setupDriverAnimation(driverId, progress) {
         const trip = progress.trip;
-        if (!trip) return;
+        if (!trip || !this.systemState) return;
 
-        // Calculate path points
-        let pathPoints = [];
+        const locations = this.systemState.city.locations;
+        const startLocId = progress.stage === 'to_pickup' ? trip.driver_location : trip.pickup;
+        const endLocId = progress.stage === 'to_pickup' ? trip.pickup : trip.dropoff;
 
-        if (this.systemState && this.systemState.city) {
-            const locations = this.systemState.city.locations;
+        // Find start and end locations
+        const startLoc = locations.find(l => l.id === startLocId);
+        const endLoc = locations.find(l => l.id === endLocId);
 
-            if (progress.stage === 'to_pickup' && trip.driver_id) {
-                const driver = this.systemState.drivers.find(d => d.id === driverId);
-                if (driver) {
-                    // Simulate path from driver to pickup
-                    const startLoc = locations.find(l => l.id === driver.location);
-                    const endLoc = locations.find(l => l.id === trip.pickup);
+        if (!startLoc || !endLoc) return;
 
-                    if (startLoc && endLoc) {
-                        pathPoints = this.interpolatePath(startLoc, endLoc, 10);
-                    }
-                }
-            } else if (progress.stage === 'to_dropoff') {
-                const startLoc = locations.find(l => l.id === trip.pickup);
-                const endLoc = locations.find(l => l.id === trip.dropoff);
-
-                if (startLoc && endLoc) {
-                    pathPoints = this.interpolatePath(startLoc, endLoc, 10);
-                }
+        // Calculate sequence of locations to pass through
+        let locationSequence = [];
+        
+        if (startLocId < endLocId) {
+            // Ascending sequence: 4, 5, 6, 7, 8, 9, 10
+            for (let i = startLocId; i <= endLocId; i++) {
+                const loc = locations.find(l => l.id === i);
+                if (loc) locationSequence.push(loc);
+            }
+        } else {
+            // Descending sequence: 7, 6, 5, 4, 3, 2, 1
+            for (let i = startLocId; i >= endLocId; i--) {
+                const loc = locations.find(l => l.id === i);
+                if (loc) locationSequence.push(loc);
             }
         }
 
-        if (pathPoints.length > 0) {
+        // Store the complete sequence
+        this.locationSequence.set(driverId, {
+            sequence: locationSequence,
+            currentIndex: 0,
+            stage: progress.stage,
+            progress: progress.progress_percentage || 0
+        });
+
+        // Calculate current position based on progress
+        const progressPercent = progress.progress_percentage || 0;
+        const segmentIndex = this.getCurrentSegment(locationSequence.length, progressPercent);
+        
+        if (segmentIndex < locationSequence.length - 1) {
+            const currentLoc = locationSequence[segmentIndex];
+            const nextLoc = locationSequence[segmentIndex + 1];
+            const segmentProgress = this.getSegmentProgress(locationSequence.length, progressPercent, segmentIndex);
+
+            const currentX = currentLoc.x + (nextLoc.x - currentLoc.x) * segmentProgress;
+            const currentY = currentLoc.y + (nextLoc.y - currentLoc.y) * segmentProgress;
+
+            // Store animation data
+            this.driverPositions.set(driverId, {
+                x: currentX,
+                y: currentY,
+                currentLoc: currentLoc.id,
+                nextLoc: nextLoc.id,
+                progress: progressPercent,
+                stage: progress.stage,
+                isMoving: true
+            });
+
+            // Store path for reference
             this.driverPaths.set(driverId, {
-                path: pathPoints,
-                progress: progress.progress_percentage || 0,
+                sequence: locationSequence,
+                progress: progressPercent,
                 color: progress.stage === 'to_pickup' ? '#3b82f6' : '#10b981'
             });
         }
     }
 
-    interpolatePath(startLoc, endLoc, steps) {
-        const points = [];
-        for (let i = 0; i <= steps; i++) {
-            const ratio = i / steps;
-            const x = startLoc.x + (endLoc.x - startLoc.x) * ratio;
-            const y = startLoc.y + (endLoc.y - startLoc.y) * ratio;
-            points.push({ x, y });
-        }
-        return points;
+    getCurrentSegment(totalSegments, progressPercent) {
+        // Convert progress percentage to segment index
+        const segments = totalSegments - 1;
+        const segmentProgress = (progressPercent / 100) * segments;
+        return Math.floor(segmentProgress);
+    }
+
+    getSegmentProgress(totalSegments, progressPercent, segmentIndex) {
+        const segments = totalSegments - 1;
+        const segmentProgress = (progressPercent / 100) * segments;
+        return segmentProgress - segmentIndex; // Returns 0-1 for current segment
     }
 
     bindEvents() {
@@ -211,7 +248,7 @@ class RideSharingApp {
         document.getElementById('available-drivers').textContent = analytics.available_drivers;
         document.getElementById('total-riders').textContent = analytics.total_riders;
 
-        // Update drivers list
+        // Update drivers list with current location info
         const driversList = document.getElementById('drivers-list');
         driversList.innerHTML = this.systemState.drivers.map(driver => {
             const isBusy = !driver.available;
@@ -220,12 +257,23 @@ class RideSharingApp {
                     progress.trip && progress.trip.driver_id === driver.id
                 ) : null;
 
+            const animData = this.driverPositions.get(driver.id);
+            let locationInfo = `Location: ${driver.location}`;
+            
+            if (animData) {
+                if (animData.stage === 'to_pickup') {
+                    locationInfo = `Moving to pickup: ${animData.currentLoc} → ${animData.nextLoc}`;
+                } else if (animData.stage === 'to_dropoff') {
+                    locationInfo = `Moving to dropoff: ${animData.currentLoc} → ${animData.nextLoc}`;
+                }
+            }
+
             return `
                 <div class="list-item">
                     <div>
                         <strong>${driver.name}</strong><br>
                         <small>${driver.vehicle} • ${driver.license_plate || 'No plate'}</small><br>
-                        <small>Location: ${driver.location}</small>
+                        <small>${locationInfo}</small>
                         ${isBusy && activeTrip ?
                     `<br><small style="color: var(--warning);">On Trip #${activeTrip[0]}</small>` : ''}
                     </div>
@@ -276,11 +324,19 @@ class RideSharingApp {
                 stageText = 'Looking for available driver...';
             }
 
+            // Get current location info if available
+            const animData = this.driverPositions.get(trip.driver_id);
+            let locationInfo = '';
+            if (animData && (stage === 'to_pickup' || stage === 'to_dropoff')) {
+                locationInfo = `<br><small>Current: Location ${animData.currentLoc} → Next: Location ${animData.nextLoc}</small>`;
+            }
+
             return `
                 <div class="list-item" data-trip-id="${trip.id}">
                     <div>
                         <strong>Trip #${trip.id}</strong><br>
-                        <small>From: Location ${trip.pickup} → To: Location ${trip.dropoff}</small><br>
+                        <small>From: Location ${trip.pickup} → To: Location ${trip.dropoff}</small>
+                        ${locationInfo}
                         <small>Rider: ${trip.rider_id} • Driver: ${trip.driver_id || 'Finding...'}</small>
                         ${stageText ? `<br><small style="color: #666;">${stageText}</small>` : ''}
                         ${progressBar}
@@ -391,47 +447,26 @@ class RideSharingApp {
             svg.appendChild(text);
         }
 
-        // Draw roads
-        city.roads.forEach(road => {
-            const fromLoc = locations.find(l => l.id === road.from);
-            const toLoc = locations.find(l => l.id === road.to);
-
-            if (fromLoc && toLoc) {
+        // Draw roads connecting consecutive locations
+        locations.forEach((location, index) => {
+            if (index < locations.length - 1) {
+                const nextLocation = locations[index + 1];
+                
+                // Draw a road from current location to next
                 const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                line.setAttribute('x1', fromLoc.x);
-                line.setAttribute('y1', fromLoc.y);
-                line.setAttribute('x2', toLoc.x);
-                line.setAttribute('y2', toLoc.y);
+                line.setAttribute('x1', location.x);
+                line.setAttribute('y1', location.y);
+                line.setAttribute('x2', nextLocation.x);
+                line.setAttribute('y2', nextLocation.y);
                 line.setAttribute('stroke', 'rgba(100, 100, 100, 0.3)');
                 line.setAttribute('stroke-width', '2');
-                line.setAttribute('stroke-dasharray', '5,5');
                 svg.appendChild(line);
-            }
-        });
-
-        // Draw driver paths (animations)
-        this.driverPaths.forEach((pathData, driverId) => {
-            if (pathData.path.length > 1) {
-                // Draw completed portion
-                const completedIndex = Math.floor(pathData.path.length * (pathData.progress / 100));
-                const completedPath = pathData.path.slice(0, completedIndex + 1);
-
-                if (completedPath.length > 1) {
-                    const pathLine = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-                    let points = completedPath.map(p => `${p.x},${p.y}`).join(' ');
-                    pathLine.setAttribute('points', points);
-                    pathLine.setAttribute('fill', 'none');
-                    pathLine.setAttribute('stroke', pathData.color);
-                    pathLine.setAttribute('stroke-width', '4');
-                    pathLine.setAttribute('stroke-linecap', 'round');
-                    pathLine.style.opacity = '0.7';
-                    svg.appendChild(pathLine);
-                }
             }
         });
 
         // Draw locations
         locations.forEach(location => {
+            // Location circle
             const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
             circle.setAttribute('cx', location.x);
             circle.setAttribute('cy', location.y);
@@ -440,7 +475,7 @@ class RideSharingApp {
             circle.setAttribute('stroke', 'white');
             circle.setAttribute('stroke-width', '2');
             circle.setAttribute('data-location-id', location.id);
-            circle.setAttribute('title', `Location ${location.id} (${location.zone})`);
+            circle.setAttribute('title', `Location ${location.id} (Zone ${location.zone})`);
             circle.style.cursor = 'pointer';
 
             circle.addEventListener('click', () => this.selectLocation(location.id));
@@ -457,38 +492,108 @@ class RideSharingApp {
             svg.appendChild(text);
         });
 
-        // Draw drivers
+        // Draw drivers with animation
         drivers.forEach(driver => {
-            const driverLocation = locations.find(l => l.id === driver.location);
-            if (driverLocation) {
-                const driverColor = driver.available ? '#10b981' : '#ef4444';
+            let driverX, driverY;
+            let driverColor = '#10b981'; // Default for available
+            let isMoving = false;
+            let showTrail = false;
+            let trailText = '';
 
-                // Driver circle
-                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                circle.setAttribute('cx', driverLocation.x);
-                circle.setAttribute('cy', driverLocation.y);
-                circle.setAttribute('r', '12');
-                circle.setAttribute('fill', driverColor);
-                circle.setAttribute('stroke', 'white');
-                circle.setAttribute('stroke-width', '3');
-
-                if (!driver.available) {
-                    circle.style.animation = 'pulse 1.5s infinite';
-                }
-
-                svg.appendChild(circle);
-
-                // Driver initial
-                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                text.setAttribute('x', driverLocation.x);
-                text.setAttribute('y', driverLocation.y + 4);
-                text.setAttribute('text-anchor', 'middle');
-                text.setAttribute('fill', 'white');
-                text.setAttribute('font-size', '10');
-                text.setAttribute('font-weight', 'bold');
-                text.textContent = driver.name.charAt(0);
-                svg.appendChild(text);
+            // Check if this driver has an animation position
+            const animPosition = this.driverPositions.get(driver.id);
+            
+            if (animPosition) {
+                // Use animated position
+                driverX = animPosition.x;
+                driverY = animPosition.y;
+                driverColor = animPosition.stage === 'to_pickup' ? '#3b82f6' : '#10b981';
+                isMoving = true;
+                showTrail = true;
+                trailText = `${animPosition.currentLoc}→${animPosition.nextLoc}`;
+            } else {
+                // Use static position from location
+                const driverLocation = locations.find(l => l.id === driver.location);
+                if (!driverLocation) return;
+                
+                driverX = driverLocation.x;
+                driverY = driverLocation.y;
+                driverColor = driver.available ? '#10b981' : '#ef4444';
             }
+
+            // Create driver group
+            const driverGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            
+            if (showTrail) {
+                // Draw trail from current location to next location
+                const currentLoc = locations.find(l => l.id === animPosition.currentLoc);
+                const nextLoc = locations.find(l => l.id === animPosition.nextLoc);
+                
+                if (currentLoc && nextLoc) {
+                    const trailLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    trailLine.setAttribute('x1', currentLoc.x);
+                    trailLine.setAttribute('y1', currentLoc.y);
+                    trailLine.setAttribute('x2', nextLoc.x);
+                    trailLine.setAttribute('y2', nextLoc.y);
+                    trailLine.setAttribute('stroke', driverColor);
+                    trailLine.setAttribute('stroke-width', '2');
+                    trailLine.setAttribute('opacity', '0.3');
+                    trailLine.setAttribute('stroke-dasharray', '5,5');
+                    driverGroup.appendChild(trailLine);
+
+                    // Trail text
+                    const trailTextEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    trailTextEl.setAttribute('x', (currentLoc.x + nextLoc.x) / 2);
+                    trailTextEl.setAttribute('y', (currentLoc.y + nextLoc.y) / 2 - 5);
+                    trailTextEl.setAttribute('text-anchor', 'middle');
+                    trailTextEl.setAttribute('fill', driverColor);
+                    trailTextEl.setAttribute('font-size', '9');
+                    trailTextEl.setAttribute('font-weight', 'bold');
+                    trailTextEl.textContent = trailText;
+                    driverGroup.appendChild(trailTextEl);
+                }
+            }
+
+            // Driver circle
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', driverX);
+            circle.setAttribute('cy', driverY);
+            circle.setAttribute('r', '12');
+            circle.setAttribute('fill', driverColor);
+            circle.setAttribute('stroke', 'white');
+            circle.setAttribute('stroke-width', '3');
+            
+            if (isMoving) {
+                // Add moving animation
+                circle.style.animation = 'moveDriver 2s linear infinite';
+                
+                // Create a small trail effect
+                const trail = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                trail.setAttribute('cx', driverX);
+                trail.setAttribute('cy', driverY);
+                trail.setAttribute('r', '6');
+                trail.setAttribute('fill', driverColor);
+                trail.setAttribute('opacity', '0.5');
+                trail.style.animation = 'pulseTrail 1s ease-out infinite';
+                driverGroup.appendChild(trail);
+            } else if (!driver.available) {
+                circle.style.animation = 'pulse 1.5s infinite';
+            }
+
+            driverGroup.appendChild(circle);
+
+            // Driver initial
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', driverX);
+            text.setAttribute('y', driverY + 4);
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('fill', 'white');
+            text.setAttribute('font-size', '10');
+            text.setAttribute('font-weight', 'bold');
+            text.textContent = driver.name.charAt(0);
+            driverGroup.appendChild(text);
+
+            svg.appendChild(driverGroup);
         });
 
         // Add CSS animations
@@ -499,6 +604,13 @@ class RideSharingApp {
                 50% { transform: scale(1.1); opacity: 0.8; }
                 100% { transform: scale(1); opacity: 1; }
             }
+            
+            
+            @keyframes pulseTrail {
+                0% { transform: scale(0.8); opacity: 0.5; }
+                50% { transform: scale(1.2); opacity: 0.2; }
+                100% { transform: scale(0.8); opacity: 0.5; }
+            }
         `;
         svg.appendChild(style);
 
@@ -506,7 +618,6 @@ class RideSharingApp {
     }
 
     selectLocation(locationId) {
-        // Auto-fill form fields
         const pickupField = document.getElementById('pickup-location');
         const dropoffField = document.getElementById('dropoff-location');
 
@@ -823,7 +934,7 @@ class RideSharingApp {
                         <strong>Total Riders:</strong> ${analytics.total_riders}
                     </div>
                     <div>
-                        <strong>Active Animations:</strong> ${analytics.active_animations || 0}
+                        <strong>Moving Drivers:</strong> ${this.driverPositions.size}
                     </div>
                 </div>
             </div>
