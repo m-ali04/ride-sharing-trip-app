@@ -5,3 +5,4 @@ python-socketio==5.9.0
 eventlet==0.33.3
 gunicorn==21.2.0
 Werkzeug==2.3.7
+setuptools==69.5.1  # ADD THIS LINE - fixes distutils
