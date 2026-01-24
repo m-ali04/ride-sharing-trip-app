@@ -257,6 +257,7 @@ body {
     align-items: center;
     box-shadow: 5px 5px 10px var(--shadow-dark),
                 -5px -5px 10px var(--shadow-light);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .list-item:hover {
@@ -310,6 +311,43 @@ body {
                 inset -5px -5px 10px var(--shadow-light);
 }
 
+.city-map svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* Map Controls */
+.map-controls {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 10;
+}
+
+.map-controls .btn {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--card-bg);
+    box-shadow: 5px 5px 10px var(--shadow-dark),
+                -5px -5px 10px var(--shadow-light);
+    border-radius: 8px;
+    color: var(--primary-color);
+    font-size: 1.2rem;
+}
+
+.map-controls .btn:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
 .map-legend {
     display: flex;
     gap: 20px;
@@ -321,6 +359,11 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
+    padding: 5px 10px;
+    background: var(--secondary-color);
+    border-radius: 8px;
+    box-shadow: inset 3px 3px 6px var(--shadow-dark),
+                inset -3px -3px 6px var(--shadow-light);
 }
 
 .legend-color {
@@ -329,16 +372,68 @@ body {
     border-radius: 4px;
 }
 
+.legend-color.driver-available {
+    background: #10b981;
+}
+
+.legend-color.driver-busy {
+    background: #ef4444;
+}
+
+.legend-color.driver-moving {
+    background: #3b82f6;
+}
+
+.legend-color.location {
+    background: #f59e0b;
+}
+
+.legend-color.zone {
+    background: rgba(138, 43, 226, 0.1);
+    border: 2px solid rgba(138, 43, 226, 0.3);
+}
+
+/* Driver Animations */
+/*@keyframes moveDriver {
+    0% { transform: translate(0, 0) scale(1); }
+    25% { transform: translate(2px, -2px) scale(1.05); }
+    50% { transform: translate(0, 0) scale(1); }
+    75% { transform: translate(-2px, 2px) scale(1.05); }
+    100% { transform: translate(0, 0) scale(1); }
+}*/
+
+/*@keyframes pulseTrail {
+    0% { transform: scale(0.8); opacity: 0.5; }
+    50% { transform: scale(1.2); opacity: 0.2; }
+    100% { transform: scale(0.8); opacity: 0.5; }
+}*/
+
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.driver-moving {
+    animation: moveDriver 2s linear infinite;
+}
+
+.driver-busy {
+    animation: pulse 1.5s infinite;
+}
+
 /* Action Buttons */
 .action-buttons {
     display: flex;
     gap: 10px;
     margin-top: 20px;
+    flex-wrap: wrap;
 }
 
 .btn-group {
     display: flex;
     gap: 10px;
+    flex-wrap: wrap;
 }
 
 /* Forms */
@@ -369,6 +464,12 @@ body {
     outline: none;
     box-shadow: inset 8px 8px 16px var(--shadow-dark),
                 inset -8px -8px 16px var(--shadow-light);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
 }
 
 .text-muted {
@@ -423,9 +524,17 @@ body {
     font-size: 1.8rem;
     color: var(--text-light);
     cursor: pointer;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.3s;
 }
 
 .close-btn:hover {
+    background: var(--secondary-color);
     color: var(--danger);
 }
 
@@ -492,6 +601,33 @@ body {
     }
 }
 
+/* Progress Bar */
+.progress-bar {
+    height: 6px;
+    background: #e5e7eb;
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 8px 0;
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.progress-fill.blue {
+    background: #3b82f6;
+}
+
+.progress-fill.green {
+    background: #10b981;
+}
+
+.progress-fill.purple {
+    background: #8a2be2;
+}
+
 /* Management Actions */
 .management-actions {
     display: flex;
@@ -510,11 +646,18 @@ body {
     .header {
         flex-direction: column;
         gap: 15px;
+        padding: 15px;
     }
     
     .nav {
         width: 100%;
         justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    .nav-btn {
+        padding: 8px 15px;
+        font-size: 0.9rem;
     }
     
     .card-header {
@@ -530,9 +673,27 @@ body {
     .columns {
         grid-template-columns: 1fr;
     }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .map-legend {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .legend-item {
+        padding: 3px 8px;
+        font-size: 0.9rem;
+    }
 }
 
 @media (max-width: 480px) {
+    .container {
+        padding: 10px;
+    }
+    
     .stats-grid {
         grid-template-columns: 1fr;
     }
@@ -543,5 +704,74 @@ body {
     
     .modal-content {
         width: 95%;
+        margin: 10px;
     }
+    
+    .btn-group {
+        flex-direction: column;
+    }
+    
+    .btn-group .btn {
+        width: 100%;
+    }
+    
+    #notification-area {
+        width: calc(100% - 40px);
+    }
+    
+    .notification {
+        padding: 10px 15px;
+    }
+}
+
+/* Map Tooltips */
+svg text {
+    user-select: none;
+    pointer-events: none;
+}
+
+svg circle[data-location-id] {
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+svg circle[data-location-id]:hover {
+    transform: scale(1.2);
+}
+
+/* Scrollbar Styling */
+.list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.list::-webkit-scrollbar-track {
+    background: var(--secondary-color);
+    border-radius: 3px;
+}
+
+.list::-webkit-scrollbar-thumb {
+    background: var(--primary-light);
+    border-radius: 3px;
+}
+
+.list::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-color);
+}
+
+.modal-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+    background: var(--secondary-color);
+    border-radius: 3px;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+    background: var(--primary-light);
+    border-radius: 3px;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-color);
 }
