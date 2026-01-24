@@ -6,6 +6,7 @@
     <title>Dashboard - RideShare Dispatch</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="container">
@@ -41,6 +42,12 @@
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     <script>
+        // Chart instances
+        let tripStatusChart = null;
+        let revenueChart = null;
+        let driverPerformanceChart = null;
+        let tripTimingChart = null;
+
         // Load dashboard data
         window.onload = async function() {
             const app = new RideSharingApp();
@@ -49,6 +56,8 @@
             const container = document.getElementById('dashboard-content');
             if (app.systemState) {
                 const analytics = app.systemState.analytics;
+                const trips = app.systemState.trips;
+                const drivers = app.systemState.drivers;
                 
                 container.innerHTML = `
                     <div class="stats-grid">
@@ -71,12 +80,33 @@
                     </div>
                     
                     <div style="margin-top: 30px;">
-                        <h3 style="color: var(--primary-color); margin-bottom: 15px;">Recent Activity</h3>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 25px; margin-bottom: 25px;">
+                            <div class="chart-container">
+                                <h3><i class="fas fa-chart-pie"></i> Trip Status Distribution</h3>
+                                <canvas id="tripStatusChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <h3><i class="fas fa-chart-bar"></i> Revenue Trend</h3>
+                                <canvas id="revenueChart"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 25px; margin-bottom: 25px;">
+                            <div class="chart-container">
+                                <h3><i class="fas fa-chart-line"></i> Driver Performance</h3>
+                                <canvas id="driverPerformanceChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <h3><i class="fas fa-clock"></i> Trip Timing Distribution</h3>
+                                <canvas id="tripTimingChart"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
                             <div>
                                 <h4><i class="fas fa-taxi"></i> Latest Trips</h4>
                                 <div class="list" style="max-height: 200px;">
-                                    ${app.systemState.trips.slice(-3).reverse().map(trip => `
+                                    ${trips.slice(-3).reverse().map(trip => `
                                         <div class="list-item">
                                             <div>
                                                 <strong>Trip #${trip.id}</strong><br>
@@ -92,10 +122,10 @@
                             </div>
                             
                             <div>
-                                <h4><i class="fas fa-chart-line"></i> Performance</h4>
+                                <h4><i class="fas fa-chart-line"></i> Performance Metrics</h4>
                                 <div style="background: var(--secondary-color); padding: 20px; border-radius: 15px;">
                                     <div style="margin-bottom: 10px;">
-                                        <strong>Revenue:</strong> $${analytics.total_fare}
+                                        <strong>Total Revenue:</strong> $${analytics.total_fare}
                                     </div>
                                     <div style="margin-bottom: 10px;">
                                         <strong>Avg Distance:</strong> ${analytics.average_distance}km
@@ -103,17 +133,308 @@
                                     <div style="margin-bottom: 10px;">
                                         <strong>Driver Utilization:</strong> ${Math.round(analytics.driver_utilization * 100)}%
                                     </div>
+                                    <div style="margin-bottom: 10px;">
+                                        <strong>Avg Fare:</strong> $${analytics.average_fare}
+                                    </div>
                                     <div>
                                         <strong>Cancellation Rate:</strong> ${analytics.cancelled_trips > 0 ? 
                                             Math.round((analytics.cancelled_trips / analytics.total_trips) * 100) : 0}%
                                     </div>
                                 </div>
                             </div>
+                            
+                            <div>
+                                <h4><i class="fas fa-star"></i> Top Drivers</h4>
+                                <div class="list" style="max-height: 200px;">
+                                    ${drivers.sort((a, b) => b.trip_count - a.trip_count).slice(0, 3).map(driver => `
+                                        <div class="list-item">
+                                            <div>
+                                                <strong>${driver.name}</strong><br>
+                                                <small>${driver.vehicle}</small><br>
+                                                <small>Trips: ${driver.trip_count} | Rating: ${driver.rating || 'N/A'}</small>
+                                            </div>
+                                            <span class="status-badge ${driver.available ? 'status-ongoing' : 'status-cancelled'}">
+                                                ${driver.available ? 'Available' : 'Busy'}
+                                            </span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 `;
+                
+                // Render charts
+                renderCharts(app);
             }
         };
+        
+        function renderCharts(app) {
+            const analytics = app.systemState.analytics;
+            const trips = app.systemState.trips;
+            const drivers = app.systemState.drivers;
+            
+            // Destroy existing charts if they exist
+            if (tripStatusChart) tripStatusChart.destroy();
+            if (revenueChart) revenueChart.destroy();
+            if (driverPerformanceChart) driverPerformanceChart.destroy();
+            if (tripTimingChart) tripTimingChart.destroy();
+            
+            // 1. Trip Status Doughnut Chart
+            const tripStatusData = {
+                labels: ['Completed', 'Cancelled', 'Active', 'Requested'],
+                datasets: [{
+                    data: [
+                        analytics.completed_trips,
+                        analytics.cancelled_trips,
+                        analytics.active_trips,
+                        analytics.total_trips - analytics.completed_trips - analytics.cancelled_trips - analytics.active_trips
+                    ],
+                    backgroundColor: [
+                        '#10b981',
+                        '#ef4444',
+                        '#3b82f6',
+                        '#f59e0b'
+                    ],
+                    borderColor: '#ffffff',
+                    borderWidth: 2,
+                    hoverOffset: 10
+                }]
+            };
+            
+            tripStatusChart = new Chart(document.getElementById('tripStatusChart'), {
+                type: 'doughnut',
+                data: tripStatusData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true,
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = Math.round((value / total) * 100);
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // 2. Revenue Line Chart (Last 7 trips or available)
+            const recentTrips = trips.slice(-7).reverse();
+            const revenueLabels = recentTrips.map(trip => `Trip #${trip.id}`);
+            const revenueData = recentTrips.map(trip => trip.fare);
+            const cumulativeRevenue = [];
+            let sum = 0;
+            revenueData.forEach(fare => {
+                sum += fare;
+                cumulativeRevenue.push(sum);
+            });
+            
+            const revenueChartData = {
+                labels: revenueLabels,
+                datasets: [
+                    {
+                        label: 'Trip Fare',
+                        data: revenueData,
+                        borderColor: '#8a2be2',
+                        backgroundColor: 'rgba(138, 43, 226, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    },
+                    {
+                        label: 'Cumulative Revenue',
+                        data: cumulativeRevenue,
+                        borderColor: '#10b981',
+                        borderDash: [5, 5],
+                        fill: false
+                    }
+                ]
+            };
+            
+            revenueChart = new Chart(document.getElementById('revenueChart'), {
+                type: 'line',
+                data: revenueChartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Revenue ($)'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // 3. Driver Performance Bar Chart (Top 5 drivers)
+            const topDrivers = drivers.sort((a, b) => b.trip_count - a.trip_count).slice(0, 5);
+            const driverLabels = topDrivers.map(driver => driver.name);
+            const driverTripCounts = topDrivers.map(driver => driver.trip_count);
+            const driverRatings = topDrivers.map(driver => driver.rating || 0);
+            
+            driverPerformanceChart = new Chart(document.getElementById('driverPerformanceChart'), {
+                type: 'bar',
+                data: {
+                    labels: driverLabels,
+                    datasets: [
+                        {
+                            label: 'Trip Count',
+                            data: driverTripCounts,
+                            backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                            borderColor: '#3b82f6',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Rating (out of 5)',
+                            data: driverRatings,
+                            type: 'line',
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Trip Count'
+                            }
+                        },
+                        y1: {
+                            beginAtZero: true,
+                            max: 5,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Rating'
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // 4. Trip Timing Distribution Chart
+            // Group trips by hour of creation
+            const hourlyDistribution = Array(24).fill(0);
+            trips.forEach(trip => {
+                if (trip.created_at) {
+                    const hour = new Date(trip.created_at).getHours();
+                    hourlyDistribution[hour]++;
+                }
+            });
+            
+            const hourLabels = Array.from({length: 24}, (_, i) => `${i}:00`);
+            
+            tripTimingChart = new Chart(document.getElementById('tripTimingChart'), {
+                type: 'polarArea',
+                data: {
+                    labels: hourLabels,
+                    datasets: [{
+                        data: hourlyDistribution,
+                        backgroundColor: Array.from({length: 24}, (_, i) => 
+                            `hsl(${i * 15}, 70%, 60%)`
+                        ),
+                        borderColor: '#ffffff',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        r: {
+                            ticks: {
+                                display: false
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Update charts periodically
+        setInterval(async () => {
+            const app = new RideSharingApp();
+            await app.loadSystemState();
+            if (app.systemState) {
+                renderCharts(app);
+            }
+        }, 10000); // Update every 10 seconds
     </script>
+    
+    <style>
+        .chart-container {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 5px 5px 10px var(--shadow-dark),
+                        -5px -5px 10px var(--shadow-light);
+            margin-bottom: 20px;
+        }
+        
+        .chart-container h3 {
+            color: var(--primary-color);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .chart-container canvas {
+            width: 100% !important;
+            height: 300px !important;
+        }
+        
+        @media (max-width: 768px) {
+            .chart-container {
+                margin-bottom: 15px;
+            }
+            
+            .chart-container canvas {
+                height: 250px !important;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .chart-container canvas {
+                height: 200px !important;
+            }
+        }
+    </style>
 </body>
 </html>
