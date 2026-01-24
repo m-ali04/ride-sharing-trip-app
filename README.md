@@ -1,4 +1,6 @@
 UMT PROJECT
 
 # ride-sharing-trip-app
-This project delivers a web-enabled ride-sharing dispatch and trip management system that leverages advanced data structures to model city graphs, driver allocation, and trip state transitions.
+This project delivers a web-enabled ride-sharing dispatch and trip management system that leverages advanced data structures to model city graphs, driver allocation, and trip state transitions with detailed analytical Dashboard.
+
+Developed by Ali
