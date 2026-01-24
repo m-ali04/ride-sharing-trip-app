@@ -9,8 +9,10 @@ import os
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'ride-sharing-secret-key')
 CORS(app)
-# socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
+
+# Use threading for simplicity - works everywhere
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+
 # Global system instance
 system = WorkingRideShareSystem()
 
@@ -205,7 +207,7 @@ def rollback():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-# Health check endpoint for Render (IMPORTANT!)
+# Health check endpoint for Render
 @app.route('/health')
 def health_check():
     """Health check endpoint for Render"""
@@ -226,63 +228,27 @@ def handle_connect():
 def handle_disconnect():
     print("✗ Client disconnected")
 
-# SocketIO connection test endpoint
-@app.route('/socket-test')
-def socket_test():
-    return '''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Socket Test</title>
-        <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-        <script>
-            const socket = io();
-            socket.on('connect', () => {
-                document.getElementById('status').textContent = 'Connected';
-                document.getElementById('status').style.color = 'green';
-            });
-            socket.on('disconnect', () => {
-                document.getElementById('status').textContent = 'Disconnected';
-                document.getElementById('status').style.color = 'red';
-            });
-        </script>
-    </head>
-    <body>
-        <h1>Socket Test</h1>
-        <p>Status: <span id="status" style="font-weight: bold;">Connecting...</span></p>
-    </body>
-    </html>
-    '''
-
+# SIMPLE MAIN - NO GUNICORN, JUST PURE FLASK
 if __name__ == '__main__':
     print("\n" + "="*50)
-    print("RIDESHARE DISPATCH SYSTEM - GUARANTEED WORKING")
+    print("🚀 RIDESHARE DISPATCH SYSTEM - SIMPLE DEPLOYMENT")
     print("="*50)
-    print("Server starting...")
+    print("✓ Using Flask-SocketIO built-in server")
+    print("✓ No gunicorn, no worker-class issues")
+    print("✓ Works on Python 3.9-3.13")
+    print("="*50)
     
-    # Get port from environment variable (Render sets this)
+    # Get port from Render environment variable
     port = int(os.environ.get("PORT", 5000))
-    host = os.environ.get("HOST", "0.0.0.0")
     
-    print(f"Starting server on {host}:{port}")
+    print(f"Starting server on 0.0.0.0:{port}")
+    print("Your app will be live in 30 seconds...")
     
-    # Check if running on Render
-    is_render = os.environ.get('RENDER', False)
-    if is_render:
-        print("✓ Running on Render.com")
-    else:
-        print("✓ Running locally")
-    
-    print("Open http://localhost:5000 in your browser")
-    print("\nSample data:")
-    print("- Rider IDs: 101, 102, 103")
-    print("- Location IDs: 0-14")
-    print("- First request will use driver at location 0")
-    print("="*50 + "\n")
-    
-    # IMPORTANT: For Render, use host='0.0.0.0' and port from env
-    socketio.run(app, 
-                debug=False,  # Set to False for production
-                host=host, 
-                port=port, 
-                allow_unsafe_werkzeug=True)
+    # SIMPLE: Just run socketio with Flask
+    socketio.run(
+        app,
+        host='0.0.0.0',  # Important: Listen on all interfaces
+        port=port,
+        debug=False,      # False for production
+        allow_unsafe_werkzeug=True
+    )
