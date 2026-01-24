@@ -63,9 +63,9 @@ class WorkingRideShareSystem:
         
         # Add 3 drivers (make sure they're available)
         drivers_data = [
-            ("John", 0, "Toyota", "ABC123"),
-            ("Sarah", 4, "Honda", "DEF456"),
-            ("Mike", 8, "Tesla", "GHI789")
+            ("Ali", 0, "Civic", "ABC123"),
+            ("Tahir", 4, "Corolla", "DEF456"),
+            ("Hassan", 8, "Mehran", "GHI789")
         ]
         
         for name, location, vehicle, plate in drivers_data:
@@ -76,9 +76,9 @@ class WorkingRideShareSystem:
         
         # Add 3 riders
         riders_data = [
-            ("Alice", "alice@email.com"),
-            ("Bob", "bob@email.com"),
-            ("Charlie", "charlie@email.com")
+            ("Rohan", "rohan@email.com"),
+            ("Faizan", "faizan@email.com"),
+            ("Usman", "usman@email.com")
         ]
         
         for name, email in riders_data:
