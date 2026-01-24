@@ -9,8 +9,8 @@ import os
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'ride-sharing-secret-key')
 CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
-
+# socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 # Global system instance
 system = WorkingRideShareSystem()
 
