@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +8,11 @@
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <!-- Add Chart.js library -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lottie-web@5.12.2/build/player/lottie.min.js"></script>
+    <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
+    <script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
+
+
     <link rel="shortcut icon" href="../static/app-logo.png" type="image/x-icon">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -64,7 +70,7 @@
             padding: 20px;
             border-radius: 15px;
             box-shadow: 10px 10px 20px var(--shadow-dark),
-                        -10px -10px 20px var(--shadow-light);
+                -10px -10px 20px var(--shadow-light);
         }
 
         .chart-card h3 {
@@ -88,11 +94,11 @@
                 grid-template-columns: 1fr;
                 gap: 15px;
             }
-            
+
             .chart-card {
                 padding: 15px;
             }
-            
+
             .chart-wrapper {
                 height: 250px;
             }
@@ -107,6 +113,7 @@
             <div class="logo">
                 <img src="../static/app-logo.png" alt="" width="50px">
                 <h1>UMT-Drive</h1>
+                <div id="lottie-animation-pulse" style="width:50px; height:50px;"></div>
             </div>
             <nav class="nav">
                 <button class="nav-btn active" onclick="showPage('dashboard')">
@@ -131,10 +138,10 @@
                     <i class="fas fa-tachometer-alt"></i>
                 </button>
                 <button class="nav-btn" onclick="showPage('analytics')">
-                    <i class="fas fa-chart-bar"></i>    
+                    <i class="fas fa-chart-bar"></i>
                 </button>
                 <button class="nav-btn" onclick="showPage('manage')">
-                    <i class="fas fa-cog"></i> 
+                    <i class="fas fa-cog"></i>
                 </button>
             </nav>
         </header>
@@ -144,37 +151,46 @@
             <!-- Dashboard Page -->
             <div id="dashboard-page" class="page active">
                 <!-- System Status -->
-                <div class="card">
-                    <div class="card-header">
-                        <h2><i class="fas fa-info-circle"></i> System Status</h2>
-                        <button class="btn btn-primary" onclick="initSystem()">
-                            <i class="fas fa-play"></i> Initialize System
-                        </button>
-                    </div>
-                    <div class="card-body">
-                        <div class="stats-grid">
-                            <div class="stat-card" style="background: url('../static/card1.jpg'); background-size: cover; background-position: center; box-shadow: 0 5px 30px rgba(229, 124, 55, 0.677);">
-                                <div class="stat-value" id="total-trips" style="color: white;">0</div>
-                                <div class="stat-label" style="color: white;">Total Trips</div>
-                            </div>
-                            <div class="stat-card" style="background: url('../static/card2.jpg'); background-size: cover; background-position: center; box-shadow: 0 5px 30px rgba(168, 21, 131, 0.5);">
-                                <div class="stat-value" id="active-trips" style="color: white;">0</div>
-                                <div class="stat-label" style="color: white;">Active Trips</div>
-                            </div>
-                            <div class="stat-card" style="background: url('../static/card3.jpg'); background-size: cover; background-position: center; box-shadow: 0 5px 30px rgba(82, 216, 41, 0.5);">
-                                <div class="stat-value" id="available-drivers" style="color: white;">0</div>
-                                <div class="stat-label" style="color: white;">Available Drivers</div>
-                            </div>
-                            <div class="stat-card" style="background: url('../static/card4.jpg'); background-size: cover; background-position: center; box-shadow: 0 5px 30px rgba(141, 17, 172, 0.5);">
-                                <div class="stat-value" id="total-riders" style="color: white;">0</div>
-                                <div class="stat-label" style="color: white;">Total Riders</div>
+                <div class="card_main_header" data-aos="fade-up">
+                    <div class="card-s">
+                        <div class="card-header">
+                            <h2><i class="fas fa-info-circle"></i> System Status</h2>
+                            <button class="btn btn-primary" onclick="initSystem()">
+                                <i class="fas fa-play"></i> Ignition
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="stats-grid">
+                                <div class="stat-card" data-aos="zoom-in"
+                                    style="background: url('../static/card1.jpg'); background-size: cover; background-position: center; box-shadow: 0 5px 30px rgba(229, 124, 55, 0.677);">
+                                    <div class="stat-value" id="total-trips" style="color: white;">0</div>
+                                    <div class="stat-label" style="color: white;">Total Trips</div>
+                                </div>
+                                <div class="stat-card" data-aos="zoom-out"
+                                    style="background: url('../static/card2.jpg'); background-size: cover; background-position: center; box-shadow: 0 5px 30px rgba(168, 21, 131, 0.5);">
+                                    <div class="stat-value" id="active-trips" style="color: white;">0</div>
+                                    <div class="stat-label" style="color: white;">Active Trips</div>
+                                </div>
+                                <div class="stat-card" data-aos="zoom-out"
+                                    style="background: url('../static/card3.jpg'); background-size: cover; background-position: center; box-shadow: 0 5px 30px rgba(82, 216, 41, 0.5);">
+                                    <div class="stat-value" id="available-drivers" style="color: white;">0</div>
+                                    <div class="stat-label" style="color: white;">Available Drivers</div>
+                                </div>
+                                <div class="stat-card" data-aos="zoom-in"
+                                    style="background: url('../static/card4.jpg'); background-size: cover; background-position: center; box-shadow: 0 5px 30px rgba(141, 17, 172, 0.5);">
+                                    <div class="stat-value" id="total-riders" style="color: white;">0</div>
+                                    <div class="stat-label" style="color: white;">Total Riders</div>
+                                </div>
                             </div>
                         </div>
+                    </div>
+                    <div class="card_super_svg" data-aos="fade-right">
+                        <div id="lottie-animation" style="width:100%; height:300px;"></div>
                     </div>
                 </div>
 
                 <!-- City Map -->
-                <div class="card">
+                <div class="card" data-aos="fade-up">
                     <div class="card-header">
                         <h2><i class="fas fa-map"></i> City Map & Zones</h2>
                         <div class="btn-group">
@@ -212,7 +228,7 @@
                     <!-- Left Column -->
                     <div class="column">
                         <!-- Drivers -->
-                        <div class="card">
+                        <div class="card" data-aos="fade-up">
                             <div class="card-header">
                                 <h2><i class="fas fa-users"></i> Drivers</h2>
                                 <button class="btn btn-primary" onclick="showAddDriverModal()">
@@ -227,7 +243,7 @@
                         </div>
 
                         <!-- Riders -->
-                        <div class="card">
+                        <div class="card" data-aos="fade-up">
                             <div class="card-header">
                                 <h2><i class="fas fa-user-friends"></i> Riders</h2>
                                 <button class="btn btn-primary" onclick="showAddRiderModal()">
@@ -245,7 +261,7 @@
                     <!-- Right Column -->
                     <div class="column">
                         <!-- Trip Management -->
-                        <div class="card">
+                        <div class="card" data-aos="fade-up">
                             <div class="card-header">
                                 <h2><i class="fas fa-taxi"></i> Trip Management</h2>
                                 <button class="btn btn-primary" onclick="showRequestRideModal()">
@@ -268,7 +284,7 @@
                         </div>
 
                         <!-- Trip History -->
-                        <div class="card">
+                        <div class="card" data-aos="fade-up">
                             <div class="card-header">
                                 <h2><i class="fas fa-history"></i> Recent Trip History</h2>
                             </div>
@@ -460,6 +476,7 @@
             border-top: 1px solid #e5e7eb;
             width: 100%;
         }
+
         .footer-content {
             display: flex;
             flex-direction: column;
@@ -467,17 +484,20 @@
             justify-content: center;
             gap: 0.75rem;
         }
+
         .site-footer p {
             margin: 0;
             color: #6b7280;
             font-weight: 500;
             font-size: 0.95rem;
         }
+
         .github-link {
             color: #374151;
             font-size: 1.75rem;
             transition: transform 0.2s ease, color 0.2s ease;
         }
+
         .github-link:hover {
             color: #000000;
             transform: scale(1.1);
@@ -485,7 +505,7 @@
     </style>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-    
+
     <!-- Chart Management Script -->
     <script>
         // Global chart instances
@@ -500,7 +520,7 @@
         async function loadAnalytics() {
             try {
                 const container = document.getElementById('analytics-content');
-                
+
                 // Show loading
                 container.innerHTML = `
                     <div style="text-align: center; padding: 20px;">
@@ -508,7 +528,7 @@
                         <p style="margin-top: 10px;">Loading analytics data...</p>
                     </div>
                 `;
-                
+
                 // Fetch system state
                 const app = window.app;
                 if (!app) {
@@ -517,20 +537,20 @@
                 } else {
                     await app.loadSystemState();
                 }
-                
+
                 if (!app.systemState) {
                     throw new Error('Failed to load system state');
                 }
-                
+
                 const analytics = app.systemState.analytics;
                 const trips = app.systemState.trips || [];
                 const drivers = app.systemState.drivers || [];
-                
+
                 // Destroy existing charts
                 Object.values(charts).forEach(chart => {
                     if (chart) chart.destroy();
                 });
-                
+
                 // Create HTML for charts
                 container.innerHTML = `
                     <div style="margin-bottom: 20px;">
@@ -554,7 +574,7 @@
                         </div>
                     </div>
                     
-                    <div class="charts-container">
+                    <div class="charts-container" data-aos="fade-up">
                         <div class="chart-card">
                             <h3><i class="fas fa-chart-pie"></i> Trip Status Distribution</h3>
                             <div class="chart-wrapper">
@@ -562,21 +582,21 @@
                             </div>
                         </div>
                         
-                        <div class="chart-card">
+                        <div class="chart-card" data-aos="fade-up">
                             <h3><i class="fas fa-chart-line"></i> Revenue Trend</h3>
                             <div class="chart-wrapper">
                                 <canvas id="revenueTrendChart"></canvas>
                             </div>
                         </div>
                         
-                        <div class="chart-card">
+                        <div class="chart-card" data-aos="fade-up">
                             <h3><i class="fas fa-chart-bar"></i> Driver Performance</h3>
                             <div class="chart-wrapper">
                                 <canvas id="driverPerformanceChart"></canvas>
                             </div>
                         </div>
                         
-                        <div class="chart-card">
+                        <div class="chart-card" data-aos="fade-up">
                             <h3><i class="fas fa-clock"></i> Trip Timing</h3>
                             <div class="chart-wrapper">
                                 <canvas id="tripTimingChart"></canvas>
@@ -602,12 +622,12 @@
                         </div>
                     </div>
                 `;
-                
+
                 // Render charts after a short delay to ensure DOM is ready
                 setTimeout(() => {
                     renderCharts(app);
                 }, 100);
-                
+
             } catch (error) {
                 console.error('Error loading analytics:', error);
                 const container = document.getElementById('analytics-content');
@@ -627,7 +647,7 @@
             const analytics = app.systemState.analytics;
             const trips = app.systemState.trips || [];
             const drivers = app.systemState.drivers || [];
-            
+
             // 1. Trip Status Doughnut Chart
             const tripStatusData = {
                 labels: ['Completed', 'Cancelled', 'Active', 'Requested'],
@@ -649,7 +669,7 @@
                     hoverOffset: 10
                 }]
             };
-            
+
             charts.tripStatus = new Chart(
                 document.getElementById('tripStatusChart').getContext('2d'),
                 {
@@ -670,12 +690,12 @@
                     }
                 }
             );
-            
+
             // 2. Revenue Trend Chart
             const recentTrips = trips.slice(-10).reverse();
             const revenueLabels = recentTrips.map(trip => `Trip #${trip.id}`);
             const revenueData = recentTrips.map(trip => trip.fare || 0);
-            
+
             charts.revenueTrend = new Chart(
                 document.getElementById('revenueTrendChart').getContext('2d'),
                 {
@@ -711,12 +731,12 @@
                     }
                 }
             );
-            
+
             // 3. Driver Performance Chart
             const topDrivers = drivers.sort((a, b) => (b.trip_count || 0) - (a.trip_count || 0)).slice(0, 5);
             const driverLabels = topDrivers.map(driver => driver.name);
             const driverTripCounts = topDrivers.map(driver => driver.trip_count || 0);
-            
+
             charts.driverPerformance = new Chart(
                 document.getElementById('driverPerformanceChart').getContext('2d'),
                 {
@@ -746,7 +766,7 @@
                     }
                 }
             );
-            
+
             // 4. Trip Timing Chart
             const hourCounts = Array(24).fill(0);
             trips.forEach(trip => {
@@ -759,13 +779,13 @@
                     }
                 }
             });
-            
+
             charts.tripTiming = new Chart(
                 document.getElementById('tripTimingChart').getContext('2d'),
                 {
                     type: 'bar',
                     data: {
-                        labels: Array.from({length: 24}, (_, i) => `${i}:00`),
+                        labels: Array.from({ length: 24 }, (_, i) => `${i}:00`),
                         datasets: [{
                             label: 'Trips per Hour',
                             data: hourCounts,
@@ -817,5 +837,39 @@
 
 
 
+
+    <script>
+  AOS.init({
+    duration: 1000,      // animation duration (ms)
+    once: true,          // animate only once
+    easing: 'ease-in-out',
+    offset: 120          // trigger distance from viewport
+  });
+</script>
+
+    <!---LOTTIE ANIMATIONS JS-->
+
+    <script>
+        lottie.loadAnimation({
+            container: document.getElementById('lottie-animation'),
+            renderer: 'svg',      // best for web
+            loop: true,           // or false
+            autoplay: true,
+            path: '../static/car_driving_on.json' // local or hosted JSON
+        });
+    </script>
+
+    <script>
+        lottie.loadAnimation({
+            container: document.getElementById('lottie-animation-pulse'),
+            renderer: 'svg',      // best for web
+            loop: true,           // or false
+            autoplay: true,
+            path: '../static/pulse_super.json' // local or hosted JSON
+        });
+    </script>
+
+
 </body>
+
 </html>

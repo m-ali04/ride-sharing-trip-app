@@ -51,7 +51,9 @@ body {
     align-items: center;
     margin-bottom: 30px;
     padding: 20px;
-    background: var(--card-bg);
+    background: url('../nav_bar.jpg');
+    background-size: cover;
+    background-position: center;
     border-radius: 20px;
     box-shadow: 10px 10px 20px var(--shadow-dark),
         -10px -10px 20px var(--shadow-light);
@@ -63,7 +65,9 @@ body {
     align-items: center;
     margin-bottom: 30px;
     padding: 20px;
-    background: var(--card-bg);
+    background: url('../nav_bar.jpg');
+    background-size: cover;
+    background-position: center;
     border-radius: 20px;
     box-shadow: 10px 10px 20px var(--shadow-dark),
         -10px -10px 20px var(--shadow-light);
@@ -149,7 +153,24 @@ body {
 }
 
 /* Cards */
+.card_main_header{
+    background: url(../main-sec.jpg);
+    background-size: cover;
+    background-position: center;
+    margin-bottom: 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    
+    border-radius: 20px;
+    padding: 25px;
+    margin-bottom: 25px;
+    box-shadow: 10px 10px 20px var(--shadow-dark),
+        -10px -10px 20px var(--shadow-light);
+}
+
 .card {
+    
     background: var(--card-bg);
     border-radius: 20px;
     padding: 25px;
@@ -246,8 +267,8 @@ body {
 
 .stat-card {
     background: var(--secondary-color);
-    padding: 20px;
-    border-radius: 15px;
+    padding: 10px;
+    border-radius: 10px;
     text-align: center;
     box-shadow: inset 5px 5px 10px var(--shadow-dark),
         inset -5px -5px 10px var(--shadow-light);
@@ -342,7 +363,9 @@ body {
 /* City Map */
 .city-map {
     height: 400px;
-    background: var(--secondary-color);
+    background: url(../map_flat.jpg);
+    background-size: cover;
+    background-position: center;
     border-radius: 15px;
     position: relative;
     overflow: hidden;
