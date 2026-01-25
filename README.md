@@ -2,9 +2,7 @@
 
 ✨ Live Demo
 
-🚀 Experience the live demo: https://rideshare-app.onrender.com
-
-🎯 Dashboard: https://rideshare-app.onrender.com/dashboard
+🚀 Experience the live demo: https://ride-sharing-trip-app.onrender.com/
 
 ## 📌 Overview
 The Ride-Sharing Dispatch & Trip Management System is a full-stack, web-based application that simulates the internal working of modern ride-hailing platforms such as Uber or Careem. The system is designed with a strong focus on **Data Structures & Algorithms (DSA)**, emphasizing modularity, state consistency, rollback handling, and analytical insights.
